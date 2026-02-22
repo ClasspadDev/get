@@ -28,7 +28,7 @@ $Dependencies = @(
     @{
         Name = "DotNet48"
         Test = {
-            $k="HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
+            $k = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
             (Test-Path $k) -and ((Get-ItemProperty $k).Release -ge 528040)
         }
         Url  = "https://go.microsoft.com/fwlink/?LinkId=2085155"
@@ -38,7 +38,12 @@ $Dependencies = @(
     @{
         Name = "VCx86"
         Test = {
-            $k="HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86"
+            if ([Environment]::Is64BitOperatingSystem) {
+                $k = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x86"
+            }
+            else {
+                $k = "HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86"
+            }
             (Test-Path $k) -and ((Get-ItemProperty $k).Installed -eq 1)
         }
         Url  = "https://aka.ms/vc14/vc_redist.x86.exe"
@@ -48,7 +53,7 @@ $Dependencies = @(
     @{
         Name = "VCx64"
         Test = {
-            if(![Environment]::Is64BitOperatingSystem) { return $true }
+            if (![Environment]::Is64BitOperatingSystem) { return $true }
             $k="HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
             (Test-Path $k) -and ((Get-ItemProperty $k).Installed -eq 1)
         }
@@ -139,9 +144,9 @@ $InstallBlock = {
 # Execute Install Block
 # =========================
 
-if($Missing.Count -gt 0){
+if ($Missing.Count -gt 0) {
 
-    if(Is-Admin){
+    if (Is-Admin) {
         & $InstallBlock $Missing
     }
     else{
