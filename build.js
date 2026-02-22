@@ -18,6 +18,9 @@ function copyFiles(srcDir, outputDir) {
     const srcPath = path.join(srcDir, entry.name);
     const outputPath = path.join(outputDir, entry.name);
 
+    // Skip the 'public' directory to avoid infinite copying
+    if (srcPath === path.resolve(OUTPUT_DIRECTORY)) return;
+
     // Handle subdirectories recursively
     if (entry.isDirectory()) {
       // Skip excluded directories
@@ -44,4 +47,3 @@ function buildPublicDirectory() {
 
 // Execute the build process
 buildPublicDirectory();
-
