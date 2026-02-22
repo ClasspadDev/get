@@ -1,14 +1,200 @@
-# This script is hosted on <b>https://gget.classpad.dev</b> for <b>https://classpad.dev</b><br><br>
-# Having trouble launching this script? Check <a href="https://classpad.dev">https://classpad.dev</a> for help.<hr><pre>
+﻿# =========================
+# CONFIG
+# =========================
 
-if (-not $args) {
-    Write-Host ''
-    Write-Host 'Need help? Check our homepage: ' -NoNewline
-    Write-Host 'https://classpad.dev' -ForegroundColor Green
-    Write-Host ''
+if ([Environment]::Is64BitOperatingSystem) {
+    $AppZipUrl  = "https://get.classpad.dev/LauncherUI-x64.zip"
 }
-& {
+else {
+    $AppZipUrl  = "https://get.classpad.dev/LauncherUI-x86.zip"
+}
+$AppExeName = "LauncherUI.exe"
+
+# =========================
+# Helpers
+# =========================
+
+function Is-Admin {
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $p  = New-Object Security.Principal.WindowsPrincipal($id)
+    $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Download($url,$file){
+    if(!(Test-Path $file)){
+        Write-Host "Downloading $file"
+        (New-Object Net.WebClient).DownloadFile($url,$file)
+    }
+}
+
+# =========================
+# Dependency Definitions
+# =========================
+
+$Dependencies = @(
+    @{
+        Name = "DotNet48"
+        Test = {
+            $k="HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
+            (Test-Path $k) -and ((Get-ItemProperty $k).Release -ge 528040)
+        }
+        Url  = "https://go.microsoft.com/fwlink/?LinkId=2085155"
+        File = "dotnet48.exe"
+        Args = "/quiet /norestart"
+    },
+    @{
+        Name = "VCx86"
+        Test = {
+            $k="HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86"
+            (Test-Path $k) -and ((Get-ItemProperty $k).Installed -eq 1)
+        }
+        Url  = "https://aka.ms/vc14/vc_redist.x86.exe"
+        File = "vc_x86.exe"
+        Args = "/quiet /norestart"
+    },
+    @{
+        Name = "VCx64"
+        Test = {
+            if(![Environment]::Is64BitOperatingSystem) { return $true }
+            $k="HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+            (Test-Path $k) -and ((Get-ItemProperty $k).Installed -eq 1)
+        }
+        Url  = "https://aka.ms/vc14/vc_redist.x64.exe"
+        File = "vc_x64.exe"
+        Args = "/quiet /norestart"
+    },
+    @{
+        Name = "WebView2"
+        Test = {
+            $guid = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+
+            if ([Environment]::Is64BitOperatingSystem) {
+                $paths = @(
+                    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$guid",
+                    "HKCU:\Software\Microsoft\EdgeUpdate\Clients\$guid"
+                )
+            }
+            else {
+                $paths = @(
+                    "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$guid",
+                    "HKCU:\Software\Microsoft\EdgeUpdate\Clients\$guid"
+                )
+            }
+
+            foreach ($path in $paths) {
+
+                if (Test-Path $path) {
+
+                    $pv = (Get-ItemProperty $path -ErrorAction SilentlyContinue).pv
+
+                    if (-not [string]::IsNullOrWhiteSpace($pv)) {
+                        try {
+                            $ver = [version]$pv
+                            if ($ver -gt [version]"0.0.0.0") {
+                                return $true
+                            }
+                        }
+                        catch {
+                            # malformed version string -> ignore
+                        }
+                    }
+                }
+            }
+
+            return $false
+        }
+        Url  = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+        File = "webview2.exe"
+        Args = "/silent /install"
+    }
+)
+
+# =========================
+# Detect Missing
+# =========================
+
+$Missing = $Dependencies | Where-Object { -not (& $_.Test) }
+
+# =========================
+# SINGLE INSTALL BLOCK
+# =========================
+
+$InstallBlock = {
+    param($Deps)
 
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-} @args
+    foreach($d in $Deps){
+        if(-not (Test-Path $d.File)){
+            (New-Object Net.WebClient).DownloadFile($d.Url,$d.File)
+        }
+
+        Write-Host "Installing $($d.Name)"
+        Start-Process $d.File -ArgumentList $d.Args -Wait
+    }
+}
+
+# =========================
+# Execute Install Block
+# =========================
+
+if($Missing.Count -gt 0){
+
+    if(Is-Admin){
+        & $InstallBlock $Missing
+    }
+    else{
+        Write-Host "Elevation required for dependency installation..."
+
+        $encodedBlock = [Convert]::ToBase64String(
+            [Text.Encoding]::Unicode.GetBytes($InstallBlock.ToString())
+        )
+
+        $payload = [Convert]::ToBase64String(
+            [Text.Encoding]::Unicode.GetBytes(
+                ($Missing | ConvertTo-Json -Depth 5 -Compress)
+            )
+        )
+
+        $command = @"
+`$block = [ScriptBlock]::Create(
+    [Text.Encoding]::Unicode.GetString(
+        [Convert]::FromBase64String("$encodedBlock")
+    )
+)
+
+`$deps = [Text.Encoding]::Unicode.GetString(
+    [Convert]::FromBase64String("$payload")
+) | ConvertFrom-Json
+
+& `$block `$deps
+"@
+
+        $encodedCommand = [Convert]::ToBase64String(
+            [Text.Encoding]::Unicode.GetBytes($command)
+        )
+
+        $proc = Start-Process powershell `
+            -Verb RunAs `
+            -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand" `
+            -PassThru
+
+        $proc.WaitForExit()
+    }
+}
+
+# =========================
+# App Phase
+# =========================
+
+Write-Host "Downloading application..."
+
+if(Test-Path "app"){ Remove-Item "app" -Recurse -Force }
+
+(New-Object Net.WebClient).DownloadFile($AppZipUrl,"app.zip")
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory("app.zip","app")
+
+Write-Host "Launching application..."
+Start-Process "app\$AppExeName"
