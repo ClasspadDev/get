@@ -7,3 +7,8 @@ if (-not $args) {
     Write-Host 'https://classpad.dev' -ForegroundColor Green
     Write-Host ''
 }
+& {
+
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
+
+} @args
