@@ -3,8 +3,8 @@
   "name": "get",
   "compatibility_date": "2025-08-23",
   "assets": {
-    "directory": ".",
-    "include": ["*.html", "*.css", "*.js", "*.exe", "*.ps1"],
-    "exclude": [".git", "node_modules", ".env*"]
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page"
   }
 }
