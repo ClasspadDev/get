@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // List of static assets extensions to include
-const ASSET_EXTENSIONS = ['.html', '.css', '.js', '.exe', '.ps1', '.zip', '.msi'];
+const ASSET_EXTENSIONS = ['.html', '.css', '.js', '.json', '.exe', '.ps1', '.zip', '.msi'];
 
 // Paths for source and output directories
 const SOURCE_DIRECTORY = '.';
