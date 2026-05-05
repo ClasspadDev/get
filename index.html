@@ -237,4 +237,4 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile,$appDir)
 
 Write-Host "Launching application..."
-Start-Process "$appDir\$AppExeName"
+Start-Process "$appDir\$AppExeName" -WorkingDirectory $appDir
